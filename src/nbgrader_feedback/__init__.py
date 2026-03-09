@@ -27,3 +27,9 @@
 __author__ = """Philipp Emmo Tobias Risius"""
 __email__ = "philipp.e.risius@theo.physik.uni-giessen.de"
 __version__ = "0.1.0"
+
+from nbgrader_feedback.report_creation.nbgrader_exporter import (
+    CSVExporter,
+    MailExporter,
+    ReportCardExporter,
+)

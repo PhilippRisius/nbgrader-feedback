@@ -31,7 +31,16 @@ classifiers = [
   "Typing :: Typed"
 ]
 dynamic = ["description", "version"]
-dependencies = []
+dependencies = [
+  "argcomplete",
+  "matplotlib",
+  "nbgrader >=0.9",
+  "numpy",
+  "pandas >=2",
+  "pypandoc",
+  "python-dateutil",
+  "tabulate"
+]
 
 [project.optional-dependencies]
 dev = [
@@ -64,6 +73,11 @@ docs = [
   "sphinx-rtd-theme >=1.0"
 ]
 all = ["nbgrader_feedback[dev]", "nbgrader_feedback[docs]"]
+
+# TODO: Before first release, evaluate whether the create_report CLI script should
+# remain or be removed in favour of pure nbgrader plugin usage (--exporter=...).
+[project.scripts]
+create_report = "nbgrader_feedback.interface.command_line:main"
 
 [project.urls]
 # "Homepage" = "https://nbgrader-feedback.readthedocs.io/"
@@ -136,7 +150,8 @@ values = [
 ]
 
 [tool.codespell]
-ignore-words-list = "astroid,socio-economic"
+# "nd" (German particle), "ges" (German note name) appear in fixture HTML output
+ignore-words-list = "astroid,socio-economic,nd,ges"
 
 [tool.coverage.paths]
 source = ["src/nbgrader_feedback/", "*/site-packages/nbgrader_feedback/"]
@@ -169,6 +184,7 @@ include = [
   "docs/make.bat",
   "src/nbgrader_feedback",
   "tests/*.py",
+  "tests/fixtures/",
   "tox.ini"
 ]
 exclude = [
@@ -203,9 +219,28 @@ module = [
   # Don't require test functions to include types
   "tests.*"
 ]
-allow_untyped_defs = true
+disallow_untyped_defs = false
 disable_error_code = "attr-defined"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# TODO: Add full type annotations to ported legacy code (interface/ and report_creation/).
+# nbgrader ships no stubs; ExportPlugin resolves to Any in nbgrader_exporter.
+module = [
+  "nbgrader_feedback.__main__",
+  "nbgrader_feedback.interface.cli_args",
+  "nbgrader_feedback.interface.command_line",
+  "nbgrader_feedback.report_creation.create_report",
+  "nbgrader_feedback.report_creation.nbgrader_exporter",
+  "nbgrader_feedback.report_creation.plotting",
+  "nbgrader_feedback.report_creation.read_csv_results",
+  "nbgrader_feedback.report_creation.report_writer"
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.fixtures.*"
+ignore_errors = true
 
 [tool.numpydoc_validation]
 checks = [
@@ -245,7 +280,8 @@ exclude = [
   ".eggs",
   ".git",
   "build",
-  "docs"
+  "docs",
+  "tests/fixtures"
 ]
 
 [tool.ruff.format]
@@ -304,6 +340,9 @@ max-complexity = 15
 [tool.ruff.lint.per-file-ignores]
 "docs/**" = ["E402"]
 "src/nbgrader_feedback/**/__init__.py" = ["F401", "F403"]
+# TODO: Add docstrings and fix style issues in ported legacy modules.
+"src/nbgrader_feedback/interface/**" = ["D100", "D101", "D102", "D103", "D104"]
+"src/nbgrader_feedback/report_creation/**" = ["C901", "D100", "D101", "D102", "D103", "D104", "D105", "G004", "PERF203"]
 "tests/**" = ["D100", "D101", "D102", "D103", "S101"]
 
 [tool.ruff.lint.pycodestyle]
