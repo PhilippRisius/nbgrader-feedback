@@ -76,7 +76,7 @@ def write_markdown_report(df, filename, exercise_name, **kwargs):
             logger.debug("including grading scheme from %s.", kwargs["grading_scheme"])
             f.write("## Bewertungsschema:\n")
             with pathlib.Path(kwargs["grading_scheme"]).open() as scheme:
-                f.write("\n".join(list(scheme.readlines())))
+                f.write(scheme.read())
             f.write(r"\vfill")
         if kwargs.get("taskptdistr_img"):
             f.write("\n\n## Statistiken:\n")

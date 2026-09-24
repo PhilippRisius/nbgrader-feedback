@@ -15,6 +15,7 @@ import logging
 import os
 import pathlib
 import smtplib
+import sys
 
 import nbgrader.api
 import numpy as np
@@ -23,7 +24,6 @@ import pypandoc
 from nbgrader.plugins import ExportPlugin
 
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -50,11 +50,11 @@ def parse_templates(templates, log=logger):
             parsed_templates["header"] = f.read()
         with pathlib.Path(template_path / templates.get("footer")).open() as f:
             parsed_templates["footer"] = f.read()
-        logger.info(
+        log.info(
             f'Exporting feedback with subject: \n"{parsed_templates["subject"]}"\n'
             f'and message template: """\n{parsed_templates["header"]}\n{parsed_templates["footer"]}"""'
         )
-        for key, value in templates.get("additional").items():
+        for key, value in templates.get("additional", {}).items():
             parsed_templates[key] = {}
             for k, v in value.items():
                 with pathlib.Path(template_path / key / v).open() as f:
@@ -62,7 +62,7 @@ def parse_templates(templates, log=logger):
         return parsed_templates
     else:
         log.error(f'Mail templates not found in directory "{template_path.resolve()}"')
-        exit(1)
+        sys.exit(1)
 
 
 def read_config(filename, log=logger, **kwargs):
@@ -93,7 +93,7 @@ def read_config(filename, log=logger, **kwargs):
             if sender in address_book:
                 ready_to_send = confirm(f"Sending mails as {sender}. Is this correct [y/n/a]?")
                 if ready_to_send is None:
-                    exit(1)
+                    sys.exit(1)
             if not ready_to_send:
                 if sender not in address_book:
                     log.warning('Sender "%s" not found in address book!', sender)
@@ -115,7 +115,7 @@ def read_config(filename, log=logger, **kwargs):
                     log.warning(f"Feedback location does not exist: {path.resolve()}")
                     location = None
             config["feedback"]["location"] = location
-            log.info(f"Finding feedback files {'in {path}' if path else 'via nbgrader'}")
+            log.info(f"Finding feedback files {f'in {path}' if path else 'via nbgrader'}")
 
             if not config["feedback"].get("suffix"):
                 log.warning("Feedback suffix not given. Assume html.")
@@ -127,7 +127,7 @@ def read_config(filename, log=logger, **kwargs):
             log.info("Not attaching feedback")
     else:
         log.warning("No config for feedback files found. Not attaching any.")
-        config["feedback"]["attach"] = False
+        config["feedback"] = {"attach": False}
 
     # read report card templates
     if (report_cards := config.get("report_cards")) is not None:
@@ -145,14 +145,15 @@ def read_config(filename, log=logger, **kwargs):
     else:
         log.info("Students need {points_needed} of {points_100_percent} points to pass.".format_map(config["grading"]))
         if (percentage_table := config["grading"].get("percentage_to_grade")) is not None:
+            # sort thresholds numerically; JSON keys are strings and compare lexicographically
+            thresholds = sorted((float(threshold), grade) for threshold, grade in percentage_table.items())
 
             def percentage_to_grade(percentage):
-                return max(
-                    filter(
-                        lambda entry: percentage >= float(entry[0]),
-                        percentage_table.items(),
-                    )
-                )[1]
+                grade = thresholds[0][1]
+                for threshold, candidate in thresholds:
+                    if percentage >= threshold:
+                        grade = candidate
+                return grade
 
             config["grading"]["percentage_to_grade"] = percentage_to_grade
 
@@ -196,7 +197,7 @@ def export_to_multiindex(gradebook, students, assignments, missing_ok):
             for assignment in assignments
             if has_entry(gradebook, assignment, missing_ok, student)
             for notebook in assignment.notebooks
-            if has_entry(gradebook, assignment, student, notebook)
+            if has_entry(gradebook, assignment, missing_ok, student, notebook)
             for cell_index, cell in enumerate(itertools.chain(notebook.grade_cells, notebook.task_cells))
         }
         for student in students
@@ -267,8 +268,8 @@ class CSVExporter(ExportPlugin):
     """
 
     # TODO: use `read_config`
-    missing_ok: bool
-    aggregated: bool
+    missing_ok: bool = True
+    aggregated: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -638,7 +639,7 @@ class MailExporter(ExportPlugin):
 
                 # write out additional information depending on the result
                 body = self.export_config["message_templates"]["header"]
-                if self.export_config["appointments"].get(str(admitted)):
+                if self.export_config.get("appointments", {}).get(str(admitted)):
                     termin, ort = next(self.export_config["appointments"][str(admitted)][0])
                     self.export_config["appointments"][str(admitted)][1][termin].append(f"{student.last_name}, {student.first_name}")
                     format_student["exam_info"] = f"{termin} in {ort}"
@@ -674,19 +675,19 @@ class MailExporter(ExportPlugin):
                     attachments=attachments,
                 )
 
-                to_addrs = list(f"{{{self.to}}}".replace(",", "};{").format_map(address_book).split(";"))
-
-                if not to_addrs:
-                    self.log.info(f"Recipient not {'recognized' if self.to else 'given'}.")
+                if not self.to:
+                    self.log.info("Recipient not given.")
                     self.log.info(f"Dry run: not sending to {address_book['students']}.")
                     continue
+
+                to_addrs = list(f"{{{self.to}}}".replace(",", "};{").format_map(address_book).split(";"))
 
                 self.log.info("Sending e-mail to %s.", to_addrs)
                 send_mail(message, smtp, to_addrs, log=self.log)
                 # TODO: Optionally add a sleeping time to bypass SMTP rate limits
 
             # send summary message to instructors
-            if self.export_config["appointments"] is not None:
+            if self.export_config.get("appointments") and self.to:
                 body = ""
                 for reason, appointments in self.export_config["appointments"].items():
                     body += f"Appointments for students who {reason}:\n"

@@ -2,6 +2,7 @@
 
 import logging
 import pathlib
+import sys
 
 from nbgrader_feedback.report_creation import plotting, read_csv_results, report_writer
 
@@ -13,7 +14,7 @@ def main(cli_args):
     """Parse grading results into a pdf report via pandoc."""
     if cli_args.csv_file.suffix != ".csv":
         logger.critical("cannot read in from data source other than csv!")
-        exit(1)
+        sys.exit(1)
 
     logger.info("Reading grades from %s.", cli_args.csv_file)
     df_scores = read_csv_results.read_grades_from_csv(cli_args.csv_file)

@@ -33,21 +33,21 @@ def _aggregate_scores_to_level(
     """
     aggregate_scores = {}
     for aggregation_level in range(max_aggregation_level.value):
-        logging.debug("Aggregating scores at level %s", aggregation_level)
+        logger.debug("Aggregating scores at level %s", aggregation_level)
 
         columns_left = scores.columns.copy()
         df_agg = pd.DataFrame(index=scores.index)
         df_indices = pd.DataFrame(index=pd.Index(["start", "end"]))
         end = -1
         while len(columns_left) > 0:
-            logging.debug("left to aggregate: %s", columns_left)
+            logger.debug("left to aggregate: %s", columns_left)
             start = end + 1
             prefix = separator.join((columns_left[0] + separator).split(separator, maxsplit=aggregation_level)[:-1])
             col_name = prefix or "total"
-            logging.debug("Aggregating columns with %s", prefix)
+            logger.debug("Aggregating columns with %s", prefix)
 
             matching_columns = columns_left[(columns_left == prefix) | columns_left.str.startswith(f"{prefix}." if prefix else "")]
-            logging.debug("Aggregating %s", matching_columns)
+            logger.debug("Aggregating %s", matching_columns)
 
             df_agg[col_name] = np.zeros(len(scores.index), dtype=int)
             for column in matching_columns:
@@ -164,3 +164,4 @@ def plot_task_points_distribution(
             )
 
     plt.savefig(tmpdir / filename, bbox_inches="tight")
+    plt.close(fig)
